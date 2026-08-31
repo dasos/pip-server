@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pip Notes</title>
+  <style>
+    body { max-width: 760px; margin: 2rem auto; padding: 0 1rem; font: 16px system-ui, sans-serif; color: #222; }
+    h1 { margin-bottom: 1.5rem; }
+    article { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+    time, .status { color: #666; font-size: .9rem; }
+    audio { width: 100%; margin-top: .8rem; }
+    .error { color: #a00; }
+  </style>
+</head>
+<body>
+  <h1>Pip Notes</h1>
+  {% for note in notes %}
+  <article data-note-id="{{ note.id }}">
+    <time datetime="{{ note.created_at }}">{{ note.created_at }}</time>
+    <span class="status">{{ note.status }}</span>
+    <p class="transcript">{{ note.transcript or (note.error if note.status == 'failed' else 'Transcribing…') }}</p>
+    {% if note.status != 'failed' %}<audio controls preload="none" src="{{ url_for('audio', note_id=note.id) }}"></audio>{% endif %}
+  </article>
+  {% else %}
+  <p>No notes yet.</p>
+  {% endfor %}
+  <script>
+    async function refresh() {
+      for (const card of document.querySelectorAll('[data-note-id]')) {
+        const response = await fetch('/notes/' + card.dataset.noteId);
+        if (!response.ok) continue;
+        const note = await response.json();
+        card.querySelector('.status').textContent = note.status;
+        card.querySelector('.transcript').textContent = note.transcript || (note.status === 'failed' ? note.error : 'Transcribing…');
+      }
+    }
+    setInterval(refresh, 3000);
+  </script>
+</body>
+</html>
