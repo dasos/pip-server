@@ -104,6 +104,17 @@ Streams the stored WAV recording for the UI audio player.
 
 Returns `{ "status": "ok" }`.
 
+### `GET /health/audio`
+
+Checks that the server is alive and the Bearer token is valid:
+
+```sh
+curl http://localhost:8080/health/audio \
+  -H 'Authorization: Bearer replace-with-a-long-random-token'
+```
+
+The endpoint returns `200 Connected` for a valid token and `401 Unauthorized` for a missing or invalid token.
+
 ## Reverse proxy
 
 Terminate HTTPS and apply any additional access controls at the reverse proxy. The upload API still requires the `Authorization: Bearer <API_TOKEN>` header even when the proxy itself does not authenticate the audio endpoint.

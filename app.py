@@ -165,6 +165,13 @@ def health():
     return jsonify(status="ok")
 
 
+@app.get("/health/audio")
+def audio_health():
+    if not authorized():
+        return "Unauthorized", 401
+    return "Connected", 200
+
+
 if not API_TOKEN:
     raise RuntimeError("API_TOKEN environment variable is required")
 
