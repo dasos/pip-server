@@ -56,7 +56,9 @@ def get_model():
     if model is None:
         with model_lock:
             if model is None:
+                app.logger.info("Loading Whisper model %s", MODEL_NAME)
                 model = whisper.load_model(MODEL_NAME, download_root=str(MODEL_DIR))
+                app.logger.info("Whisper model %s loaded", MODEL_NAME)
     return model
 
 
@@ -204,9 +206,6 @@ if not API_TOKEN:
 
 init_db()
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
-app.logger.info("Loading Whisper model %s", MODEL_NAME)
-model = whisper.load_model(MODEL_NAME, download_root=str(MODEL_DIR))
-app.logger.info("Whisper model %s loaded", MODEL_NAME)
 recover_processing_jobs()
 threading.Thread(target=worker, daemon=True, name="transcription-worker").start()
 
