@@ -1,3 +1,4 @@
+import logging
 import os
 import queue
 import sqlite3
@@ -19,6 +20,7 @@ MODEL_NAME = os.environ.get("WHISPER_MODEL", "base")
 API_TOKEN = os.environ.get("API_TOKEN")
 
 app = Flask(__name__)
+app.logger.setLevel(logging.INFO)
 transcription_queue = queue.Queue()
 model = None
 model_lock = threading.Lock()
@@ -91,11 +93,34 @@ def transcribe(note_id, audio_path):
             )
 
 
+def recover_processing_jobs():
+    with get_db() as connection:
+        notes = connection.execute(
+            "SELECT id, audio_path FROM notes WHERE status = 'processing'"
+        ).fetchall()
+        for note in notes:
+            audio_path = Path(note["audio_path"])
+            if audio_path.is_file():
+                transcription_queue.put((note["id"], audio_path))
+                app.logger.info("Requeued transcription %s", note["id"])
+            else:
+                connection.execute(
+                    "UPDATE notes SET status = 'failed', error = ? WHERE id = ?",
+                    ("Audio file is missing", note["id"]),
+                )
+                app.logger.error("Cannot requeue %s: audio file is missing", note["id"])
+        if notes:
+            app.logger.info("Recovered %d transcription job(s)", len(notes))
+
+
 def worker():
+    app.logger.info("Transcription worker started")
     while True:
         note_id, audio_path = transcription_queue.get()
+        app.logger.info("Starting transcription %s", note_id)
         try:
             transcribe(note_id, audio_path)
+            app.logger.info("Finished transcription %s", note_id)
         finally:
             transcription_queue.task_done()
 
@@ -138,6 +163,7 @@ def upload_audio():
             (note_id, created_at, original_name, str(audio_path), datetime.now(timezone.utc).isoformat()),
         )
     transcription_queue.put((note_id, audio_path))
+    app.logger.info("Queued transcription %s for %s", note_id, original_name)
     return jsonify(id=note_id, created_at=created_at, status="processing"), 202
 
 
@@ -178,7 +204,10 @@ if not API_TOKEN:
 
 init_db()
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
+app.logger.info("Loading Whisper model %s", MODEL_NAME)
 model = whisper.load_model(MODEL_NAME, download_root=str(MODEL_DIR))
+app.logger.info("Whisper model %s loaded", MODEL_NAME)
+recover_processing_jobs()
 threading.Thread(target=worker, daemon=True, name="transcription-worker").start()
 
 if __name__ == "__main__":
