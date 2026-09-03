@@ -8,6 +8,7 @@ RUN apt-get update \
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir "setuptools<82" \
+    && pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch \
     && pip install --no-cache-dir --no-build-isolation -r requirements.txt
 
 COPY app.py .

@@ -13,6 +13,7 @@ from werkzeug.utils import secure_filename
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR / "data"))
 AUDIO_DIR = DATA_DIR / "audio"
+MODEL_DIR = DATA_DIR / "models"
 DATABASE = DATA_DIR / "notes.sqlite3"
 MODEL_NAME = os.environ.get("WHISPER_MODEL", "base")
 API_TOKEN = os.environ.get("API_TOKEN")
@@ -53,7 +54,7 @@ def get_model():
     if model is None:
         with model_lock:
             if model is None:
-                model = whisper.load_model(MODEL_NAME)
+                model = whisper.load_model(MODEL_NAME, download_root=str(MODEL_DIR))
     return model
 
 
@@ -176,6 +177,8 @@ if not API_TOKEN:
     raise RuntimeError("API_TOKEN environment variable is required")
 
 init_db()
+MODEL_DIR.mkdir(parents=True, exist_ok=True)
+model = whisper.load_model(MODEL_NAME, download_root=str(MODEL_DIR))
 threading.Thread(target=worker, daemon=True, name="transcription-worker").start()
 
 if __name__ == "__main__":
