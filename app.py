@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-import whisper
+from faster_whisper import WhisperModel
 from flask import Flask, jsonify, render_template, request, send_file
 from werkzeug.utils import secure_filename
 
@@ -57,7 +57,13 @@ def get_model():
         with model_lock:
             if model is None:
                 app.logger.info("Loading Whisper model %s", MODEL_NAME)
-                model = whisper.load_model(MODEL_NAME, download_root=str(MODEL_DIR))
+                model = WhisperModel(
+                    MODEL_NAME,
+                    device="cpu",
+                    compute_type="int8",
+                    download_root=str(MODEL_DIR),
+                    cpu_threads=1,
+                )
                 app.logger.info("Whisper model %s loaded", MODEL_NAME)
     return model
 
@@ -79,8 +85,8 @@ def validate_created_at(value):
 
 def transcribe(note_id, audio_path):
     try:
-        result = get_model().transcribe(str(audio_path), fp16=False)
-        transcript = result.get("text", "").strip()
+        segments, _ = get_model().transcribe(str(audio_path))
+        transcript = " ".join(segment.text.strip() for segment in segments).strip()
         with get_db() as connection:
             connection.execute(
                 "UPDATE notes SET transcript = ?, status = 'complete' WHERE id = ?",
