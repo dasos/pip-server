@@ -152,7 +152,7 @@ def index():
         notes = connection.execute(
             "SELECT id, created_at, transcript, status, error FROM notes ORDER BY created_at DESC"
         ).fetchall()
-    return render_template("index.html", notes=notes)
+    return render_template("index.html", notes=notes), {"Cache-Control": "no-store"}
 
 
 @app.post("/api/audio")
