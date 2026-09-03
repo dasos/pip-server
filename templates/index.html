@@ -7,19 +7,31 @@
   <style>
     body { max-width: 760px; margin: 2rem auto; padding: 0 1rem; font: 16px system-ui, sans-serif; color: #222; }
     h1 { margin-bottom: 1.5rem; }
-    article { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+    article { position: relative; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
     time, .status { color: #666; font-size: .9rem; }
     audio { width: 100%; margin-top: .8rem; }
     .error { color: #a00; }
+    .delete { position: absolute; top: .5rem; right: .5rem; border: none; background: none;
+      color: #999; font-size: 1.2rem; line-height: 1; cursor: pointer; padding: .25rem .5rem; }
+    .delete:hover { color: #a00; }
+    .transcript-row { display: flex; align-items: flex-start; gap: .5rem; margin: .5rem 0; }
+    .transcript { margin: 0; flex: 1; }
+    .copy { border: 1px solid #ccc; border-radius: 4px; background: #f5f5f5; color: #444;
+      font-size: .8rem; cursor: pointer; padding: .15rem .5rem; white-space: nowrap; }
+    .copy:hover { background: #e8e8e8; }
   </style>
 </head>
 <body>
   <h1>Pip Notes</h1>
   {% for note in notes %}
   <article data-note-id="{{ note.id }}">
-    <time datetime="{{ note.created_at }}">{{ note.created_at }}</time>
+    <button class="delete" title="Delete note" aria-label="Delete note">&#10005;</button>
+    <time datetime="{{ note.created_at }}">{{ note.created_at | friendly_time }}</time>
     <span class="status">{{ note.status }}</span>
-    <p class="transcript">{{ note.transcript or (note.error if note.status == 'failed' else 'Transcribing…') }}</p>
+    <div class="transcript-row">
+      <p class="transcript">{{ note.transcript or (note.error if note.status == 'failed' else 'Transcribing…') }}</p>
+      {% if note.transcript %}<button class="copy" title="Copy transcript">Copy</button>{% endif %}
+    </div>
     {% if note.status != 'failed' %}<audio controls preload="none" src="{{ url_for('audio', note_id=note.id) }}"></audio>{% endif %}
   </article>
   {% else %}
@@ -36,6 +48,24 @@
       }
     }
     setInterval(refresh, 3000);
+
+    document.querySelectorAll('.copy').forEach(button => {
+      button.addEventListener('click', async () => {
+        const text = button.closest('.transcript-row').querySelector('.transcript').textContent;
+        await navigator.clipboard.writeText(text);
+        button.textContent = 'Copied!';
+        setTimeout(() => { button.textContent = 'Copy'; }, 1500);
+      });
+    });
+
+    document.querySelectorAll('.delete').forEach(button => {
+      button.addEventListener('click', async () => {
+        const card = button.closest('[data-note-id]');
+        if (!confirm('Delete this note and its recording?')) return;
+        const response = await fetch('/notes/' + card.dataset.noteId, { method: 'DELETE' });
+        if (response.ok) card.remove();
+      });
+    });
   </script>
 </body>
 </html>

@@ -133,9 +133,17 @@ def worker():
             transcription_queue.task_done()
 
 
+@app.template_filter("friendly_time")
+def friendly_time(value):
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return parsed.strftime("%Y %b %d %H:%M")
+
+
 @app.before_request
 def prepare():
     init_db()
+    if request.path.startswith("/api/") and not authorized():
+        return jsonify(error="Unauthorized"), 401
 
 
 @app.get("/")
@@ -147,7 +155,7 @@ def index():
     return render_template("index.html", notes=notes)
 
 
-@app.post("/audio")
+@app.post("/api/audio")
 def upload_audio():
     if not authorized():
         return jsonify(error="Unauthorized"), 401
@@ -195,12 +203,28 @@ def audio(note_id):
     return send_file(note["audio_path"], mimetype="audio/wav")
 
 
+@app.delete("/notes/<note_id>")
+def delete_note(note_id):
+    with get_db() as connection:
+        note = connection.execute(
+            "SELECT audio_path FROM notes WHERE id = ?", (note_id,)
+        ).fetchone()
+        if note is None:
+            return jsonify(error="not found"), 404
+        connection.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+    audio_path = Path(note["audio_path"])
+    if audio_path.is_file():
+        audio_path.unlink()
+    app.logger.info("Deleted note %s", note_id)
+    return "", 204
+
+
 @app.get("/health")
 def health():
     return jsonify(status="ok")
 
 
-@app.get("/health/audio")
+@app.get("/api/health/audio")
 def audio_health():
     if not authorized():
         return "Unauthorized", 401

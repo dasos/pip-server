@@ -12,7 +12,7 @@ A Flask server for receiving WAV voice notes, transcribing them with OpenAI Whis
 
 | Variable | Default | Description |
 |---|---|---|
-| `API_TOKEN` | required | Bearer token accepted by `POST /audio` |
+| `API_TOKEN` | required | Bearer token accepted by `/api/*` endpoints |
 | `WHISPER_MODEL` | `base` | Whisper model to use, such as `tiny`, `small`, or `base` |
 | `DATA_DIR` | `./data` | Directory containing the SQLite database and audio files |
 | `PORT` | `8080` | Flask listening port |
@@ -57,12 +57,14 @@ Install `ffmpeg` separately if it is not already installed.
 
 ## API
 
-### `POST /audio`
+All machine-to-machine endpoints live under `/api/` and require a Bearer token (enforced by the server itself, independent of the proxy). Browser-facing endpoints (the UI, note status, audio playback, delete) are public.
+
+### `POST /api/audio`
 
 Uploads one WAV recording. The request must use a Bearer token and include an ISO-8601 timestamp.
 
 ```sh
-curl -X POST http://localhost:8080/audio \
+curl -X POST http://localhost:8080/api/audio \
   -H 'Authorization: Bearer replace-with-a-long-random-token' \
   -F 'created_at=2026-08-31T12:00:00Z' \
   -F 'file=@recording.wav;type=audio/wav'
@@ -100,16 +102,20 @@ Returns the current transcription status and transcript:
 
 Streams the stored WAV recording for the UI audio player.
 
+### `DELETE /notes/<id>`
+
+Deletes a note, its transcript, and its stored recording. Returns `204 No Content` on success, `404` if the note does not exist.
+
 ### `GET /health`
 
 Returns `{ "status": "ok" }`.
 
-### `GET /health/audio`
+### `GET /api/health/audio`
 
 Checks that the server is alive and the Bearer token is valid:
 
 ```sh
-curl http://localhost:8080/health/audio \
+curl http://localhost:8080/api/health/audio \
   -H 'Authorization: Bearer replace-with-a-long-random-token'
 ```
 
@@ -117,6 +123,8 @@ The endpoint returns `200 Connected` for a valid token and `401 Unauthorized` fo
 
 ## Reverse proxy
 
-Terminate HTTPS and apply any additional access controls at the reverse proxy. The upload API still requires the `Authorization: Bearer <API_TOKEN>` header even when the proxy itself does not authenticate the audio endpoint.
+Every request to `/api/*` requires the `Authorization: Bearer <API_TOKEN>` header, enforced by the server. All other paths (the web UI, note status, playback, delete, `/health`) are unauthenticated and intended for the browser.
+
+For the reverse proxy, apply your authentication/access-control rule so that only `/api/*` reaches the token-protected endpoints, and keep the remaining paths available to the browser.
 
 Do not expose the API token in client-side HTML or URLs. Keep the data volume private and use a long, randomly generated token.
